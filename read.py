@@ -1,53 +1,26 @@
-import sqlite3
+from __future__ import annotations
 
-from models import DATABASE_PATH
+from collections import Counter
 
-
-def fetch_incident_type_counts() -> list[tuple[str, int]]:
-    with sqlite3.connect(DATABASE_PATH) as connection:
-        rows = connection.execute(
-            """
-            SELECT title, COUNT(*) AS incident_count
-            FROM incident
-            WHERE title IS NOT NULL AND title != ''
-            GROUP BY title
-            ORDER BY incident_count DESC
-            """
-        ).fetchall()
-    return [(row[0], row[1]) for row in rows]
+from database import ensure_starting_data, load_incidents
 
 
-def fetch_division_counts() -> list[tuple[str, int]]:
-    with sqlite3.connect(DATABASE_PATH) as connection:
-        rows = connection.execute(
-            """
-            SELECT division, COUNT(*) AS incident_count
-            FROM incident
-            WHERE division IS NOT NULL AND division != ''
-            GROUP BY division
-            ORDER BY incident_count DESC
-            """
-        ).fetchall()
-    return [(row[0], row[1]) for row in rows]
+def count_by_field(field_name: str) -> list[tuple[str, int]]:
+    ensure_starting_data()
+    incidents = load_incidents()
+
+    counter = Counter()
+    for incident in incidents:
+        value = (incident.get(field_name) or "").strip()
+        if value:
+            counter[value] += 1
+
+    return counter.most_common()
 
 
 def print_query_results() -> None:
-    type_counts = fetch_incident_type_counts()
-    division_counts = fetch_division_counts()
-
-    pd = None
-    try:
-        import pandas as pd  # type: ignore[import-not-found]
-    except ImportError:
-        pd = None
-
-    if pd is not None:
-        print("Top Incident Types")
-        print(pd.DataFrame(type_counts, columns=["title", "incident_count"]).head(15))
-        print()
-        print("Top Divisions")
-        print(pd.DataFrame(division_counts, columns=["division", "incident_count"]).head(15))
-        return
+    type_counts = count_by_field("title")
+    division_counts = count_by_field("division")
 
     print("Top Incident Types")
     for title, count in type_counts[:15]:

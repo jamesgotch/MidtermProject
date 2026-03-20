@@ -258,8 +258,27 @@ select:focus {
 	cursor: pointer;
 }
 
+.primary-button {
+	border: 0;
+	border-radius: 999px;
+	padding: 12px 18px;
+	background: var(--teal);
+	color: white;
+	cursor: pointer;
+	white-space: nowrap;
+}
+
 .secondary-button:hover {
 	background: var(--accent-strong);
+}
+
+.primary-button:hover {
+	background: #0b7475;
+}
+
+.primary-button:disabled {
+	opacity: 0.65;
+	cursor: wait;
 }
 
 .ghost-button {

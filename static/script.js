@@ -17,6 +17,7 @@ const elements = {
 	locationSearch: document.getElementById("locationSearch"),
 	pageSizeSelect: document.getElementById("pageSizeSelect"),
 	sortSelect: document.getElementById("sortSelect"),
+	updateButton: document.getElementById("updateButton"),
 	exportButton: document.getElementById("exportButton"),
 	resetButton: document.getElementById("resetButton"),
 	resultSummary: document.getElementById("resultSummary"),
@@ -390,10 +391,33 @@ function wireEvents() {
 		renderDetails();
 	});
 
+	async function runUpdate() {
+		elements.updateButton.disabled = true;
+		elements.loadingState.textContent = "Updating data... this can take a minute";
+
+		try {
+			const response = await fetch("/api/update", { method: "POST" });
+			const payload = await response.json();
+
+			if (!response.ok) {
+				throw new Error(payload.detail || `Request failed: ${response.status}`);
+			}
+
+			await loadIncidents();
+			elements.loadingState.textContent = `Update complete: ${payload.current_count} incidents saved (${payload.new_count} new)`;
+		} catch (error) {
+			elements.loadingState.textContent = `Update failed: ${error.message}`;
+		} finally {
+			elements.updateButton.disabled = false;
+		}
+	}
+
 	elements.sortSelect.addEventListener("change", () => {
 		state.sortMode = elements.sortSelect.value;
 		applyFilters();
 	});
+
+	elements.updateButton.addEventListener("click", runUpdate);
 
 	elements.exportButton.addEventListener("click", exportFilteredResults);
 

@@ -1,29 +1,35 @@
 # MidtermProject
 
-Interactive dashboard and data updater for the Colorado Springs police blotter.
+Simple FastAPI dashboard and updater for the Colorado Springs police blotter.
 
-## Quick Start
-
-Run the updater:
+## Install Dependencies
 
 ```bash
-cd /workspaces/MidtermProject && /workspaces/MidtermProject/.venv/bin/python update.py
+cd /workspaces/MidtermProject && /workspaces/MidtermProject/.venv/bin/pip install -r requirements.txt
 ```
 
-Run the dashboard:
+## Run Files
+
+### Run `main.py`
+
+Starts the FastAPI dashboard.
 
 ```bash
-cd /workspaces/MidtermProject && /workspaces/MidtermProject/.venv/bin/python main.py
+fastapi dev main.py
 ```
 
-Run the updater and dashboard back to back:
+### Run `update.py`
+
+Scrapes fresh data and updates the CSV and database.
 
 ```bash
-cd /workspaces/MidtermProject && /workspaces/MidtermProject/.venv/bin/python update.py && /workspaces/MidtermProject/.venv/bin/python main.py
+python update.py
 ```
 
-Open the dashboard in your browser:
+### Run `read.py`
 
-```text
-http://127.0.0.1:8000
+Prints quick summary counts in the terminal.
+
+```bash
+python read.py
 ```
