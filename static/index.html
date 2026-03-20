@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Incident Dashboard</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+	<div class="page-shell">
+		<header class="hero">
+			<div class="hero-copy">
+				<p class="eyebrow">Colorado Springs Police Blotter</p>
+				<h1>Incident Dashboard</h1>
+				<p class="hero-text">
+					Search by record ID, date, time, division, title, location, or summary.
+					Filter the incident list and open any row to view the full incident details.
+				</p>
+			</div>
+			<div class="hero-panel">
+				<div class="hero-stat">
+					<span class="hero-stat-label">Dataset Size</span>
+					<strong id="heroTotalCount">0</strong>
+				</div>
+				<div class="hero-stat">
+					<span class="hero-stat-label">Visible Results</span>
+					<strong id="heroVisibleCount">0</strong>
+				</div>
+			</div>
+		</header>
+
+		<main class="dashboard-grid">
+			<section class="filters-panel card">
+				<div class="section-heading">
+					<h2>Find Incidents</h2>
+					<p>Use one field or combine several filters.</p>
+				</div>
+
+				<label class="field-group field-group-wide">
+					<span>Search everything</span>
+					<input id="globalSearch" type="search" placeholder="Try: robbery, Sand Creek, 36075, March 19...">
+				</label>
+
+				<div class="filters-grid">
+					<label class="field-group">
+						<span>Record ID</span>
+						<input id="recordIdSearch" type="search" placeholder="36075">
+					</label>
+
+					<label class="field-group">
+						<span>Date</span>
+						<input id="dateSearch" type="search" placeholder="March 19, 2026">
+					</label>
+
+					<label class="field-group">
+						<span>Time</span>
+						<input id="timeSearch" type="search" placeholder="15:02">
+					</label>
+
+					<label class="field-group">
+						<span>Division</span>
+						<select id="divisionFilter">
+							<option value="">All divisions</option>
+						</select>
+					</label>
+
+					<label class="field-group">
+						<span>Title</span>
+						<select id="titleFilter">
+							<option value="">All incident types</option>
+						</select>
+					</label>
+
+					<label class="field-group">
+						<span>Location</span>
+						<input id="locationSearch" type="search" placeholder="Fountain Blvd">
+					</label>
+				</div>
+
+				<div class="filter-actions">
+					<button id="resetButton" class="secondary-button" type="button">Reset Filters</button>
+					<span id="resultSummary" class="result-summary">Loading incidents...</span>
+				</div>
+				<div id="activeFilters" class="filter-tags"></div>
+			</section>
+
+			<section class="summary-panel">
+				<div class="card stat-card">
+					<span class="stat-label">Total Incidents</span>
+					<strong id="totalCount">0</strong>
+				</div>
+				<div class="card stat-card">
+					<span class="stat-label">Filtered Incidents</span>
+					<strong id="filteredCount">0</strong>
+				</div>
+				<div class="card stat-card">
+					<span class="stat-label">Top Division</span>
+					<strong id="topDivision">-</strong>
+				</div>
+				<div class="card stat-card">
+					<span class="stat-label">Top Incident Type</span>
+					<strong id="topTitle">-</strong>
+				</div>
+			</section>
+
+			<section class="table-panel card">
+				<div class="table-header">
+					<div>
+						<h2>Incident List</h2>
+						<p>Click any row to inspect the full incident details.</p>
+					</div>
+					<div class="table-controls">
+						<label class="table-control-group" for="pageSizeSelect">
+							<span>Show</span>
+							<select id="pageSizeSelect">
+								<option value="1">1</option>
+								<option value="5">5</option>
+								<option value="10" selected>10</option>
+								<option value="20">20</option>
+								<option value="50">50</option>
+								<option value="100">100</option>
+								<option value="150">150</option>
+								<option value="200">200</option>
+								<option value="250">250</option>
+								<option value="300">300</option>
+								<option value="all">All</option>
+							</select>
+							<span>incidents</span>
+						</label>
+						<label class="table-control-group" for="sortSelect">
+							<span>Sort</span>
+							<select id="sortSelect">
+								<option value="newest" selected>Newest</option>
+								<option value="oldest">Oldest</option>
+								<option value="title">Title</option>
+								<option value="division">Division</option>
+								<option value="record_id">Record ID</option>
+							</select>
+						</label>
+						<button id="exportButton" class="ghost-button" type="button">Export Filtered CSV</button>
+						<span id="loadingState" class="table-note">Loading data...</span>
+					</div>
+				</div>
+
+				<div class="table-wrap">
+					<table>
+						<thead>
+							<tr>
+								<th>Record ID</th>
+								<th>Date</th>
+								<th>Time</th>
+								<th>Division</th>
+								<th>Title</th>
+								<th>Location</th>
+							</tr>
+						</thead>
+						<tbody id="incidentTableBody"></tbody>
+					</table>
+				</div>
+			</section>
+
+			<aside class="detail-panel card">
+				<div class="section-heading">
+					<h2>Incident Details</h2>
+					<p id="detailHint">Select an incident row to view more information.</p>
+				</div>
+
+				<div id="detailContent" class="detail-content empty-state">
+					Pick a record from the table to see its full summary, contact details, and location.
+				</div>
+			</aside>
+		</main>
+	</div>
+
+	<script src="script.js"></script>
+</body>
+</html>
