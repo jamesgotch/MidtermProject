@@ -1,11 +1,8 @@
 from __future__ import annotations
-
 from pathlib import Path
-
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-
 from database import ensure_starting_data, load_incidents
 from scraper import refresh_data
 
