@@ -11,7 +11,14 @@ from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from playwright.async_api import async_playwright
 
-from database import deduplicate_incidents, load_incidents, make_incident_key, replace_all_incidents, write_incidents_to_csv
+from database import (
+    deduplicate_incidents,
+    load_incidents,
+    make_incident_key,
+    merge_incident_lists,
+    upsert_incidents,
+    write_incidents_to_csv,
+)
 
 
 DEFAULT_BLOTTER_URL = "https://web2.coloradosprings.gov/policeblotter/"
@@ -144,9 +151,10 @@ def refresh_data(start_url: str = DEFAULT_BLOTTER_URL, delay_seconds: float = 0.
 
     scraped_incidents = scrape_all_incidents(start_url=start_url, delay_seconds=delay_seconds)
     current_keys = {make_incident_key(incident) for incident in scraped_incidents}
+    merged_incidents = merge_incident_lists(previous_incidents, scraped_incidents)
 
-    write_incidents_to_csv(scraped_incidents)
-    saved_count = replace_all_incidents(scraped_incidents)
+    write_incidents_to_csv(merged_incidents)
+    saved_count = upsert_incidents(scraped_incidents)
 
     return {
         "previous_count": len(previous_keys),

@@ -20,7 +20,7 @@ fastapi dev main.py
 
 ### Run `update.py`
 
-Scrapes fresh data and updates the CSV and database.
+Scrapes fresh data, merges in only new incidents, and updates matching records without duplicating existing ones.
 
 ```bash
 python update.py

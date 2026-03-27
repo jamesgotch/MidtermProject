@@ -139,6 +139,17 @@ def write_incidents_to_csv(incidents: list[dict[str, str]], csv_path: Path = CSV
             writer.writerow({column_name: incident.get(field_name, "") for field_name, column_name in CSV_COLUMNS})
 
 
+def merge_incident_lists(*incident_groups: list[dict[str, str]]) -> list[dict[str, str]]:
+    merged_by_key: dict[str, dict[str, str]] = {}
+
+    for incidents in incident_groups:
+        for raw_incident in incidents:
+            incident = normalize_incident(raw_incident)
+            merged_by_key[make_incident_key(incident)] = incident
+
+    return list(merged_by_key.values())
+
+
 def replace_all_incidents(incidents: list[dict[str, str]]) -> int:
     create_table()
     clean_incidents = deduplicate_incidents(incidents)
@@ -181,6 +192,60 @@ def replace_all_incidents(incidents: list[dict[str, str]]) -> int:
         )
 
     return len(clean_incidents)
+
+
+def upsert_incidents(incidents: list[dict[str, str]]) -> int:
+    create_table()
+    clean_incidents = deduplicate_incidents(incidents)
+
+    with get_connection() as connection:
+        connection.executemany(
+            """
+            INSERT INTO incidents (
+                incident_key,
+                record_id,
+                incident_date,
+                time,
+                division,
+                title,
+                location,
+                summary,
+                adults_arrested,
+                pd_contact_number,
+                source_url
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(incident_key) DO UPDATE SET
+                record_id = excluded.record_id,
+                incident_date = excluded.incident_date,
+                time = excluded.time,
+                division = excluded.division,
+                title = excluded.title,
+                location = excluded.location,
+                summary = excluded.summary,
+                adults_arrested = excluded.adults_arrested,
+                pd_contact_number = excluded.pd_contact_number,
+                source_url = excluded.source_url
+            """,
+            [
+                (
+                    make_incident_key(incident),
+                    incident["record_id"],
+                    incident["incident_date"],
+                    incident["time"],
+                    incident["division"],
+                    incident["title"],
+                    incident["location"],
+                    incident["summary"],
+                    incident["adults_arrested"],
+                    incident["pd_contact_number"],
+                    incident["source_url"],
+                )
+                for incident in clean_incidents
+            ],
+        )
+
+    return count_incidents()
 
 
 def load_incidents() -> list[dict[str, str]]:
