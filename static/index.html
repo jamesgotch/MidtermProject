@@ -7,6 +7,14 @@
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 	<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+	<link
+		rel="stylesheet"
+		href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+		integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+		crossorigin=""
+	>
+	<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+	<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 	<link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -52,26 +60,44 @@
 
 					<label class="field-group">
 						<span>Date</span>
-						<input id="dateSearch" type="search" placeholder="March 19, 2026">
+						<div class="date-filter-group">
+							<select id="dateFilterMode" aria-label="Date filter mode">
+								<option value="on" selected>On</option>
+								<option value="after">After</option>
+								<option value="before">Before</option>
+							</select>
+							<input id="dateSearch" type="date">
+						</div>
 					</label>
 
 					<label class="field-group">
 						<span>Time</span>
-						<input id="timeSearch" type="search" placeholder="15:02">
+						<div id="timeFilterGroup" class="time-filter-group" data-mode="at">
+							<select id="timeFilterMode" aria-label="Time filter mode">
+								<option value="at" selected>At</option>
+								<option value="after">After</option>
+								<option value="before">Before</option>
+								<option value="between">Between</option>
+							</select>
+							<input id="timeSearch" type="time" aria-label="Time filter start">
+							<input id="timeSearchEnd" type="time" aria-label="Time filter end">
+						</div>
 					</label>
 
 					<label class="field-group">
 						<span>Division</span>
 						<select id="divisionFilter">
-							<option value="">All divisions</option>
+							<option value="">Add a division filter</option>
 						</select>
+						<div id="divisionFilterStack" class="stacked-filter-list"></div>
 					</label>
 
 					<label class="field-group">
 						<span>Title</span>
 						<select id="titleFilter">
-							<option value="">All incident types</option>
+							<option value="">Add an incident type filter</option>
 						</select>
+						<div id="titleFilterStack" class="stacked-filter-list"></div>
 					</label>
 
 					<label class="field-group">
@@ -173,9 +199,97 @@
 					Pick a record from the table to see its full summary, contact details, and location.
 				</div>
 			</aside>
+
+			<section class="map-panel card">
+				<div class="map-header">
+					<div>
+						<h2>ArcGIS Mapping</h2>
+						<p>Only the incidents that match your current filters are plotted on the map.</p>
+					</div>
+					<div class="map-controls">
+						<label class="map-control-group" for="basemapSelect">
+							<span>Basemap</span>
+							<select id="basemapSelect">
+								<option value="arcgis-streets" selected>ArcGIS Streets</option>
+								<option value="arcgis-satellite">ArcGIS Satellite</option>
+								<option value="arcgis-topo">ArcGIS Topographic</option>
+							</select>
+						</label>
+						<label class="map-control-group" for="poiCategorySelect">
+							<span>Nearby Places</span>
+							<select id="poiCategorySelect">
+								<option value="">Add a nearby layer</option>
+								<option value="restaurants">Restaurants</option>
+								<option value="cafes">Cafes</option>
+								<option value="hotels">Hotels</option>
+								<option value="tourism">Tourist Spots</option>
+								<option value="parks">Parks</option>
+								<option value="hospitals">Hospitals</option>
+							</select>
+						</label>
+						<label class="map-control-group" for="mapDisplayMode">
+							<span>Display</span>
+							<select id="mapDisplayMode">
+								<option value="points" selected>Points</option>
+								<option value="heatmap">Heatmap</option>
+								<option value="combined">Points + Heatmap</option>
+								<option value="clusters">Marker Clusters</option>
+							</select>
+						</label>
+						<label class="map-control-group" for="mapSizeSelect">
+							<span>Map Size</span>
+							<select id="mapSizeSelect">
+								<option value="standard">Standard</option>
+								<option value="tall" selected>Tall</option>
+								<option value="cinema">Cinema</option>
+								<option value="max">Max</option>
+							</select>
+						</label>
+						<label class="map-control-group" for="markerShapeSelect">
+							<span>Marker Shape</span>
+							<select id="markerShapeSelect">
+								<option value="circle" selected>Circle</option>
+								<option value="square">Square</option>
+								<option value="diamond">Diamond</option>
+								<option value="triangle">Triangle</option>
+							</select>
+						</label>
+						<label class="map-control-group map-control-group-compact" for="markerColorInput">
+							<span>Marker Color</span>
+							<input id="markerColorInput" type="color" value="#0f8b8d">
+						</label>
+						<label class="map-control-group map-control-group-range" for="markerSizeInput">
+							<span>Marker Size</span>
+							<input id="markerSizeInput" type="range" min="12" max="34" step="2" value="18">
+							<strong id="markerSizeValue">18px</strong>
+						</label>
+						<label class="map-toggle" for="satelliteLabelsToggle">
+							<input id="satelliteLabelsToggle" type="checkbox">
+							<span>Satellite labels overlay</span>
+						</label>
+					</div>
+				</div>
+
+				<div id="poiFilterStack" class="stacked-filter-list stacked-filter-list-map"></div>
+
+				<div class="map-meta">
+					<p id="mapStatus" class="map-status">Preparing map...</p>
+					<p id="poiStatus" class="map-status">Nearby place overlays are off.</p>
+					<p class="map-note">Locations are geocoded in the backend and stored in the local database for consistent reloads.</p>
+				</div>
+
+				<div id="incidentMap" class="incident-map" aria-label="Map of filtered incidents"></div>
+			</section>
 		</main>
 	</div>
 
+	<script
+		src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+		integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+		crossorigin=""
+	></script>
+	<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+	<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 	<script src="script.js"></script>
 </body>
 </html>

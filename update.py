@@ -19,6 +19,7 @@ def main() -> None:
     print(f"Previous incidents: {summary['previous_count']}")
     print(f"Current incidents: {summary['current_count']}")
     print(f"New incidents: {summary['new_count']}")
+    print(f"Geocoded incidents this run: {summary['geocoded_count']}")
     print("Saved incidents.csv and incidents.db")
 
 

@@ -1,8 +1,12 @@
 from __future__ import annotations
+
 from pathlib import Path
+from typing import Any
+
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
+
 from database import ensure_starting_data, load_incidents
 from scraper import refresh_data
 
@@ -26,7 +30,7 @@ def health_check() -> dict[str, str]:
 
 
 @app.get("/api/incidents")
-def get_incidents() -> dict[str, list[dict[str, str]]]:
+def get_incidents() -> dict[str, list[dict[str, Any]]]:
     return {"incidents": load_incidents()}
 
 

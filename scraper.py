@@ -154,10 +154,11 @@ def refresh_data(start_url: str = DEFAULT_BLOTTER_URL, delay_seconds: float = 0.
     merged_incidents = merge_incident_lists(previous_incidents, scraped_incidents)
 
     write_incidents_to_csv(merged_incidents)
-    saved_count = upsert_incidents(scraped_incidents)
+    saved_count, geocoded_count = upsert_incidents(scraped_incidents)
 
     return {
         "previous_count": len(previous_keys),
         "current_count": saved_count,
         "new_count": len(current_keys - previous_keys),
+        "geocoded_count": geocoded_count,
     }
