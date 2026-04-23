@@ -146,15 +146,16 @@ def scrape_all_incidents(start_url: str = DEFAULT_BLOTTER_URL, delay_seconds: fl
 
 
 def refresh_data(start_url: str = DEFAULT_BLOTTER_URL, delay_seconds: float = 0.2) -> dict[str, int]:
-    previous_incidents = load_incidents()
+    area = "colorado_springs"
+    previous_incidents = load_incidents(area=area)
     previous_keys = {make_incident_key(incident) for incident in previous_incidents}
 
     scraped_incidents = scrape_all_incidents(start_url=start_url, delay_seconds=delay_seconds)
     current_keys = {make_incident_key(incident) for incident in scraped_incidents}
     merged_incidents = merge_incident_lists(previous_incidents, scraped_incidents)
 
-    write_incidents_to_csv(merged_incidents)
-    saved_count, geocoded_count = upsert_incidents(scraped_incidents)
+    write_incidents_to_csv(merged_incidents, area=area)
+    saved_count, geocoded_count = upsert_incidents(scraped_incidents, area=area)
 
     return {
         "previous_count": len(previous_keys),

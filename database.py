@@ -9,8 +9,6 @@ from urllib import error, parse, request
 
 
 ROOT_DIR = Path(__file__).resolve().parent
-DATABASE_PATH = ROOT_DIR / "incidents.db"
-CSV_PATH = ROOT_DIR / "incidents.csv"
 ARCGIS_GEOCODER_URL = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates"
 
 INCIDENT_FIELDS = [
@@ -184,7 +182,8 @@ def deduplicate_incidents(incidents: list[dict[str, str]]) -> list[dict[str, str
     return unique_incidents
 
 
-def read_incidents_from_csv(csv_path: Path = CSV_PATH) -> list[dict[str, str | float | None]]:
+def read_incidents_from_csv(area: str = "colorado_springs") -> list[dict[str, str | float | None]]:
+    csv_path = get_csv_path(area)
     if not csv_path.exists():
         return []
 
@@ -193,7 +192,8 @@ def read_incidents_from_csv(csv_path: Path = CSV_PATH) -> list[dict[str, str | f
         return [normalize_incident(dict(row)) for row in reader]
 
 
-def write_incidents_to_csv(incidents: list[dict[str, str]], csv_path: Path = CSV_PATH) -> None:
+def write_incidents_to_csv(incidents: list[dict[str, str]], area: str = "colorado_springs") -> None:
+    csv_path = get_csv_path(area)
     clean_incidents = deduplicate_incidents(incidents)
 
     with csv_path.open("w", encoding="utf-8", newline="") as csv_file:
@@ -275,8 +275,8 @@ def geocode_location(query: str) -> dict[str, str | float] | None:
     }
 
 
-def geocode_missing_incidents(incident_keys: set[str] | None = None) -> int:
-    create_table()
+def geocode_missing_incidents(incident_keys: set[str] | None = None, area: str = "colorado_springs") -> int:
+    create_table(area)
 
     query = (
         "SELECT incident_key, location FROM incidents "
@@ -289,7 +289,7 @@ def geocode_missing_incidents(incident_keys: set[str] | None = None) -> int:
         query += f" AND incident_key IN ({placeholders})"
         parameters.extend(sorted(incident_keys))
 
-    with get_connection() as connection:
+    with get_connection(area) as connection:
         rows = connection.execute(query, parameters).fetchall()
         geocoded_count = 0
 
@@ -346,11 +346,11 @@ def geocode_missing_incidents(incident_keys: set[str] | None = None) -> int:
     return geocoded_count
 
 
-def replace_all_incidents(incidents: list[dict[str, str]]) -> int:
-    create_table()
+def replace_all_incidents(incidents: list[dict[str, str]], area: str = "colorado_springs") -> int:
+    create_table(area)
     clean_incidents = deduplicate_incidents(incidents)
 
-    with get_connection() as connection:
+    with get_connection(area) as connection:
         connection.execute("DELETE FROM incidents")
         connection.executemany(
             """
@@ -397,16 +397,16 @@ def replace_all_incidents(incidents: list[dict[str, str]]) -> int:
             ],
         )
 
-    geocode_missing_incidents()
+    geocode_missing_incidents(area=area)
     return len(clean_incidents)
 
 
-def upsert_incidents(incidents: list[dict[str, str]]) -> tuple[int, int]:
-    create_table()
+def upsert_incidents(incidents: list[dict[str, str]], area: str = "colorado_springs") -> tuple[int, int]:
+    create_table(area)
     clean_incidents = deduplicate_incidents(incidents)
     incident_keys = {make_incident_key(incident) for incident in clean_incidents}
 
-    with get_connection() as connection:
+    with get_connection(area) as connection:
         connection.executemany(
             """
             INSERT INTO incidents (
@@ -472,14 +472,14 @@ def upsert_incidents(incidents: list[dict[str, str]]) -> tuple[int, int]:
             ],
         )
 
-    geocoded_count = geocode_missing_incidents(incident_keys)
-    return count_incidents(), geocoded_count
+    geocoded_count = geocode_missing_incidents(incident_keys, area=area)
+    return count_incidents(area=area), geocoded_count
 
 
-def load_incidents() -> list[dict[str, str | float | None]]:
-    create_table()
+def load_incidents(area: str = "colorado_springs") -> list[dict[str, str | float | None]]:
+    create_table(area)
 
-    with get_connection() as connection:
+    with get_connection(area) as connection:
         rows = connection.execute(
             """
             SELECT
@@ -505,21 +505,21 @@ def load_incidents() -> list[dict[str, str | float | None]]:
     return [dict(row) for row in rows]
 
 
-def count_incidents() -> int:
-    create_table()
+def count_incidents(area: str = "colorado_springs") -> int:
+    create_table(area)
 
-    with get_connection() as connection:
+    with get_connection(area) as connection:
         row = connection.execute("SELECT COUNT(*) FROM incidents").fetchone()
 
     return int(row[0]) if row else 0
 
 
-def ensure_starting_data() -> None:
-    create_table()
-    if count_incidents() == 0:
-        csv_incidents = read_incidents_from_csv()
+def ensure_starting_data(area: str = "colorado_springs") -> None:
+    create_table(area)
+    if count_incidents(area) == 0:
+        csv_incidents = read_incidents_from_csv(area)
         if csv_incidents:
-            replace_all_incidents(csv_incidents)
+            replace_all_incidents(csv_incidents, area=area)
             return
 
-    geocode_missing_incidents()
+    geocode_missing_incidents(area=area)

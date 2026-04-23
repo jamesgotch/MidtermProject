@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
 from database import ensure_starting_data, load_incidents
-from scraper import refresh_data
+from colorado_springs.scraper import refresh_data
 
 
 ROOT_DIR = Path(__file__).resolve().parent
