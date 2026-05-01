@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from database import ensure_starting_data, load_incidents
@@ -16,12 +18,14 @@ STATIC_DIR = ROOT_DIR / "static"
 HOST = "127.0.0.1"
 PORT = 8000
 
-app = FastAPI(title="Incident Dashboard")
 
-
-@app.on_event("startup")
-def startup() -> None:
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     ensure_starting_data()
+    yield
+
+app = FastAPI(title="Incident Dashboard", lifespan=lifespan)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 @app.get("/api/health")

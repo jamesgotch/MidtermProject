@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import contextlib
 import csv
 import hashlib
 import json
 import sqlite3
+import typing
 from pathlib import Path
 from urllib import error, parse, request
 
@@ -79,14 +81,31 @@ SCHEMA_COLUMNS = {
 }
 
 
-def get_connection() -> sqlite3.Connection:
-    connection = sqlite3.connect(DATABASE_PATH)
+def get_db_path(area: str) -> Path:
+    directory = ROOT_DIR / area
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory / "incidents.db"
+
+
+def get_csv_path(area: str) -> Path:
+    directory = ROOT_DIR / area
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory / "incidents.csv"
+
+
+@contextlib.contextmanager
+def get_connection(area: str = "colorado_springs") -> typing.Iterator[sqlite3.Connection]:
+    connection = sqlite3.connect(get_db_path(area))
     connection.row_factory = sqlite3.Row
-    return connection
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
 
 
-def create_table() -> None:
-    with get_connection() as connection:
+def create_table(area: str = "colorado_springs") -> None:
+    with get_connection(area) as connection:
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS incidents (

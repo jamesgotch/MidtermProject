@@ -1,6 +1,6 @@
 const MAP_DEFAULT_CENTER = [38.8339, -104.8214];
 const MAP_DEFAULT_ZOOM = 11;
-const OVERPASS_API_URL = "https://overpass-api.de/api/interpreter";
+const ARCGIS_GEOCODE_URL = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates";
 
 const basemapDefinitions = {
 	"arcgis-streets": {
@@ -8,6 +8,7 @@ const basemapDefinitions = {
 		options: {
 			attribution: "&copy; Esri",
 			maxZoom: 19,
+			zIndex: 1,
 		},
 	},
 	"arcgis-satellite": {
@@ -15,6 +16,7 @@ const basemapDefinitions = {
 		options: {
 			attribution: "&copy; Esri",
 			maxZoom: 19,
+			zIndex: 1,
 		},
 	},
 	"arcgis-topo": {
@@ -22,40 +24,60 @@ const basemapDefinitions = {
 		options: {
 			attribution: "&copy; Esri",
 			maxZoom: 19,
+			zIndex: 1,
 		},
 	},
+};
+
+const overlayDefinitions = {
+	parcels: {
+		url: "https://services.elpasoco.com/arcgis/rest/services/Assessor/Parcels/MapServer/tile/{z}/{y}/{x}",
+		label: "Property Parcels (El Paso)",
+		options: { minZoom: 15, maxZoom: 19, opacity: 0.7, zIndex: 10, errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" }
+	},
+	buildings: {
+		url: "https://tiles.arcgis.com/tiles/P3ePLMYs2RVChkJx/arcgis/rest/services/Microsoft_Building_Footprints/MapServer/tile/{z}/{y}/{x}",
+		label: "USA Building Footprints",
+		options: { minZoom: 14, maxZoom: 19, opacity: 0.6, zIndex: 10, errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" }
+	}
 };
 
 const poiCategoryDefinitions = {
 	restaurants: {
 		label: "Restaurants",
 		color: "#d96d3b",
-		filters: ['["amenity"~"restaurant|fast_food"]'],
+		category: "Food",
+		iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>`,
 	},
 	cafes: {
 		label: "Cafes",
 		color: "#a16d4d",
-		filters: ['["amenity"="cafe"]'],
+		category: "Coffee Shop",
+		iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>`,
 	},
 	hotels: {
 		label: "Hotels",
 		color: "#4f86c6",
-		filters: ['["tourism"~"hotel|motel|guest_house"]'],
+		category: "Hotel",
+		iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/></svg>`,
 	},
 	tourism: {
 		label: "Tourist Spots",
 		color: "#9c6644",
-		filters: ['["tourism"~"attraction|museum|viewpoint|artwork|zoo|theme_park"]'],
+		category: "Tourist Attraction,Museum",
+		iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`,
 	},
 	parks: {
 		label: "Parks",
 		color: "#5f9f69",
-		filters: ['["leisure"~"park|nature_reserve"]'],
+		category: "Parks and Outdoors",
+		iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 14 3 3.3a1 1 0 0 1-.7 1.7H4.7a1 1 0 0 1-.7-1.7L7 14h-.3a1 1 0 0 1-.7-1.7L9 9h-.2A1 1 0 0 1 8 7.3L12 3l4 4.3a1 1 0 0 1-.8 1.7H15l3 3.3a1 1 0 0 1-.8 1.7H17Z"/><path d="M12 22v-3"/></svg>`,
 	},
 	hospitals: {
 		label: "Hospitals",
 		color: "#b63c5a",
-		filters: ['["amenity"="hospital"]'],
+		category: "Hospital",
+		iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`,
 	},
 };
 
@@ -76,6 +98,8 @@ const state = {
 	labelsOverlay: null,
 	mapLayers: {},
 	activeBasemap: "arcgis-streets",
+	activeOverlay: "",
+	overlayLayer: null,
 	mapDisplayMode: "points",
 	satelliteLabelsEnabled: false,
 	markerShape: "circle",
@@ -718,6 +742,7 @@ function ensureMap() {
 			attribution: "&copy; Esri",
 			maxZoom: 19,
 			opacity: 0.9,
+			zIndex: 20,
 		},
 	);
 
@@ -824,22 +849,6 @@ function poiBoundsKey(bounds) {
 	return `${south},${west},${north},${east}`;
 }
 
-function buildPoiQuery(categoryKey, bounds) {
-	const category = poiCategoryDefinitions[categoryKey];
-	if (!category) {
-		return "";
-	}
-
-	const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
-	const selectors = category.filters.flatMap((filter) => [
-		`node${filter}(${bbox});`,
-		`way${filter}(${bbox});`,
-		`relation${filter}(${bbox});`,
-	]);
-
-	return `[out:json][timeout:18];(${selectors.join("")});out center;`;
-}
-
 function poiPopupContent(place, category) {
 	return `
 		<div class="map-popup">
@@ -850,9 +859,37 @@ function poiPopupContent(place, category) {
 	`;
 }
 
+function createPoiIcon(category) {
+	const html = `
+		<div style="
+			background-color: ${escapeHtml(category.color || "#333")};
+			color: white;
+			width: 32px;
+			height: 32px;
+			border-radius: 50%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			box-shadow: 0 3px 6px rgba(0,0,0,0.5);
+			border: 2px solid white;
+		">
+			<div style="width: 18px; height: 18px;">
+				${category.iconSvg}
+			</div>
+		</div>
+	`;
+	return window.L.divIcon({
+		html,
+		className: "custom-poi-marker",
+		iconSize: [36, 36],
+		iconAnchor: [18, 18],
+		popupAnchor: [0, -18],
+	});
+}
+
 async function fetchNearbyPlacesForCategory(categoryKey, bounds) {
-	const category = poiCategoryDefinitions[categoryKey];
-	if (!category) {
+	const categoryDef = poiCategoryDefinitions[categoryKey];
+	if (!categoryDef) {
 		return [];
 	}
 
@@ -861,33 +898,32 @@ async function fetchNearbyPlacesForCategory(categoryKey, bounds) {
 		return state.poiCache.get(cacheKey);
 	}
 
-	const response = await fetch(OVERPASS_API_URL, {
-		method: "POST",
-		headers: {
-			"Content-Type": "text/plain;charset=UTF-8",
-		},
-		body: buildPoiQuery(categoryKey, bounds),
+	const extent = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+	const params = new URLSearchParams({
+		f: "json",
+		category: categoryDef.category,
+		maxLocations: 50,
+		outFields: "PlaceName,Place_addr",
+		searchExtent: extent
 	});
+
+	const response = await fetch(`${ARCGIS_GEOCODE_URL}?${params}`);
 
 	if (!response.ok) {
 		throw new Error(`Nearby places request failed: ${response.status}`);
 	}
 
 	const payload = await response.json();
-	const places = (payload.elements || []).reduce((results, item) => {
-		const latitude = item.lat ?? item.center?.lat;
-		const longitude = item.lon ?? item.center?.lon;
-		if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-			return results;
-		}
+	const places = (payload.candidates || []).reduce((results, item) => {
+		if (!item.location) return results;
 
 		results.push({
-			id: item.id,
+			id: `${item.location.x}-${item.location.y}`,
 			categoryKey,
-			lat: latitude,
-			lng: longitude,
-			name: item.tags?.name || item.tags?.brand || category.label,
-			address: [item.tags?.["addr:housenumber"], item.tags?.["addr:street"]].filter(Boolean).join(" "),
+			lat: item.location.y,
+			lng: item.location.x,
+			name: item.attributes?.PlaceName || item.address.split(",")[0] || categoryDef.label,
+			address: item.attributes?.Place_addr || item.address || "No address available",
 		});
 		return results;
 	}, []);
@@ -930,13 +966,8 @@ async function refreshNearbyPlaces() {
 
 			places.forEach((place) => {
 				totalPlaces += 1;
-				window.L.circleMarker([place.lat, place.lng], {
-					radius: 6,
-					color: category.color,
-					fillColor: category.color,
-					fillOpacity: 0.82,
-					weight: 2,
-					opacity: 0.95,
+				window.L.marker([place.lat, place.lng], {
+					icon: createPoiIcon(category),
 				}).bindPopup(poiPopupContent(place, category)).addTo(state.poiLayer);
 			});
 		});
@@ -1199,6 +1230,28 @@ function wireEvents() {
 		setBasemap(elements.basemapSelect.value);
 		refreshMap({ preserveView: true });
 	});
+
+	if (!document.getElementById("overlaySelect") && elements.basemapSelect) {
+		elements.overlaySelect = document.createElement("select");
+		elements.overlaySelect.id = "overlaySelect";
+		elements.overlaySelect.className = elements.basemapSelect.className;
+		elements.overlaySelect.innerHTML = `<option value="">No Map Overlay</option>` +
+			Object.entries(overlayDefinitions).map(([k, v]) => `<option value="${k}">${escapeHtml(v.label)}</option>`).join("");
+		elements.basemapSelect.parentNode.insertBefore(elements.overlaySelect, elements.basemapSelect.nextSibling);
+		
+		elements.overlaySelect.addEventListener("change", () => {
+			state.activeOverlay = elements.overlaySelect.value;
+			if (!ensureMap()) return;
+			if (state.overlayLayer) {
+				state.map.removeLayer(state.overlayLayer);
+				state.overlayLayer = null;
+			}
+			if (state.activeOverlay && overlayDefinitions[state.activeOverlay]) {
+				state.overlayLayer = window.L.tileLayer(overlayDefinitions[state.activeOverlay].url, overlayDefinitions[state.activeOverlay].options);
+				state.overlayLayer.addTo(state.map);
+			}
+		});
+	}
 
 	elements.poiCategorySelect.addEventListener("change", () => {
 		addPoiCategory(elements.poiCategorySelect.value);
