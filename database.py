@@ -4,14 +4,38 @@ import contextlib
 import csv
 import hashlib
 import json
-import sqlite3
 import typing
 from pathlib import Path
 from urllib import error, parse, request
 
+from sqlalchemy import delete
+from sqlmodel import Field, Session, SQLModel, create_engine, func, or_, select
+
 
 ROOT_DIR = Path(__file__).resolve().parent
 ARCGIS_GEOCODER_URL = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates"
+
+
+class Incident(SQLModel, table=True):
+    __tablename__ = "incidents"
+
+    incident_key: str = Field(primary_key=True)
+    record_id: typing.Optional[str] = Field(default=None, index=True)
+    incident_date: typing.Optional[str] = None
+    time: typing.Optional[str] = None
+    division: typing.Optional[str] = None
+    title: typing.Optional[str] = None
+    location: typing.Optional[str] = None
+    summary: typing.Optional[str] = None
+    adults_arrested: typing.Optional[str] = None
+    pd_contact_number: typing.Optional[str] = None
+    source_url: typing.Optional[str] = None
+    latitude: typing.Optional[float] = None
+    longitude: typing.Optional[float] = None
+    geocode_provider: str = Field(default="")
+    geocoded_query: str = Field(default="")
+    geocode_status: str = Field(default="pending", index=True)
+
 
 INCIDENT_FIELDS = [
     "record_id",
@@ -61,32 +85,21 @@ FIELD_ALIASES = {
     "geocode_status": ["geocode_status", "Geocode Status"],
 }
 
-SCHEMA_COLUMNS = {
-    "incident_key": "TEXT PRIMARY KEY",
-    "record_id": "TEXT",
-    "incident_date": "TEXT",
-    "time": "TEXT",
-    "division": "TEXT",
-    "title": "TEXT",
-    "location": "TEXT",
-    "summary": "TEXT",
-    "adults_arrested": "TEXT",
-    "pd_contact_number": "TEXT",
-    "source_url": "TEXT",
-    "latitude": "REAL",
-    "longitude": "REAL",
-    "geocode_provider": "TEXT DEFAULT ''",
-    "geocoded_query": "TEXT DEFAULT ''",
-    "geocode_status": "TEXT DEFAULT 'pending'",
-}
+_engines: dict[str, typing.Any] = {}
 
+
+def get_engine(area: str):
+    global _engines
+    if area not in _engines:
+        db_path = get_db_path(area)
+        db_url = f"sqlite:///{db_path}"
+        _engines[area] = create_engine(db_url, connect_args={"check_same_thread": False})
+    return _engines[area]
 
 def get_db_path(area: str) -> Path:
     directory = ROOT_DIR / area
     directory.mkdir(parents=True, exist_ok=True)
     return directory / "incidents.db"
-
-
 def get_csv_path(area: str) -> Path:
     directory = ROOT_DIR / area
     directory.mkdir(parents=True, exist_ok=True)
@@ -94,50 +107,15 @@ def get_csv_path(area: str) -> Path:
 
 
 @contextlib.contextmanager
-def get_connection(area: str = "colorado_springs") -> typing.Iterator[sqlite3.Connection]:
-    connection = sqlite3.connect(get_db_path(area))
-    connection.row_factory = sqlite3.Row
-    try:
-        with connection:
-            yield connection
-    finally:
-        connection.close()
+def get_session(area: str = "colorado_springs") -> typing.Iterator[Session]:
+    engine = get_engine(area)
+    with Session(engine) as session:
+        yield session
 
 
 def create_table(area: str = "colorado_springs") -> None:
-    with get_connection(area) as connection:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS incidents (
-                incident_key TEXT PRIMARY KEY,
-                record_id TEXT,
-                incident_date TEXT,
-                time TEXT,
-                division TEXT,
-                title TEXT,
-                location TEXT,
-                summary TEXT,
-                adults_arrested TEXT,
-                pd_contact_number TEXT,
-                source_url TEXT,
-                latitude REAL,
-                longitude REAL,
-                geocode_provider TEXT DEFAULT '',
-                geocoded_query TEXT DEFAULT '',
-                geocode_status TEXT DEFAULT 'pending'
-            )
-            """
-        )
-
-        existing_columns = {
-            row["name"]
-            for row in connection.execute("PRAGMA table_info(incidents)").fetchall()
-        }
-        for column_name, column_definition in SCHEMA_COLUMNS.items():
-            if column_name in existing_columns:
-                continue
-
-            connection.execute(f"ALTER TABLE incidents ADD COLUMN {column_name} {column_definition}")
+    engine = get_engine(area)
+    SQLModel.metadata.create_all(engine)
 
 
 def normalize_incident(raw_incident: dict[str, str]) -> dict[str, str | float | None]:
@@ -296,241 +274,126 @@ def geocode_location(query: str) -> dict[str, str | float] | None:
 
 def geocode_missing_incidents(incident_keys: set[str] | None = None, area: str = "colorado_springs") -> int:
     create_table(area)
+    geocoded_count = 0
+    with get_session(area) as session:
+        statement = select(Incident).where(
+            or_(Incident.geocode_status == "pending", Incident.geocode_status == "", Incident.geocode_status.is_(None))
+        )
+        if incident_keys:
+            statement = statement.where(Incident.incident_key.in_(sorted(list(incident_keys))))
 
-    query = (
-        "SELECT incident_key, location FROM incidents "
-        "WHERE (geocode_status IS NULL OR geocode_status = '' OR geocode_status = 'pending')"
-    )
-    parameters: list[str] = []
+        incidents_to_geocode = session.exec(statement).all()
 
-    if incident_keys:
-        placeholders = ", ".join("?" for _ in incident_keys)
-        query += f" AND incident_key IN ({placeholders})"
-        parameters.extend(sorted(incident_keys))
-
-    with get_connection(area) as connection:
-        rows = connection.execute(query, parameters).fetchall()
-        geocoded_count = 0
-
-        for row in rows:
-            location = str(row["location"] or "").strip()
+        for incident in incidents_to_geocode:
+            location = str(incident.location or "").strip()
             if not location:
-                connection.execute(
-                    "UPDATE incidents SET geocode_status = 'missing' WHERE incident_key = ?",
-                    (row["incident_key"],),
-                )
+                incident.geocode_status = "missing"
                 continue
 
             geocode_query = build_geocode_query(location)
             if not geocode_query:
-                connection.execute(
-                    "UPDATE incidents SET geocode_status = 'missing' WHERE incident_key = ?",
-                    (row["incident_key"],),
-                )
+                incident.geocode_status = "missing"
                 continue
 
             geocoded = geocode_location(geocode_query)
             if not geocoded:
-                connection.execute(
-                    """
-                    UPDATE incidents
-                    SET geocode_status = 'unresolved',
-                        geocoded_query = ?
-                    WHERE incident_key = ?
-                    """,
-                    (geocode_query, row["incident_key"]),
-                )
+                incident.geocode_status = "unresolved"
+                incident.geocoded_query = geocode_query
                 continue
 
-            connection.execute(
-                """
-                UPDATE incidents
-                SET latitude = ?,
-                    longitude = ?,
-                    geocode_provider = ?,
-                    geocoded_query = ?,
-                    geocode_status = 'resolved'
-                WHERE incident_key = ?
-                """,
-                (
-                    geocoded["latitude"],
-                    geocoded["longitude"],
-                    geocoded["geocode_provider"],
-                    geocoded["geocoded_query"],
-                    row["incident_key"],
-                ),
-            )
+            incident.latitude = geocoded["latitude"]
+            incident.longitude = geocoded["longitude"]
+            incident.geocode_provider = geocoded["geocode_provider"]
+            incident.geocoded_query = geocoded["geocoded_query"]
+            incident.geocode_status = "resolved"
             geocoded_count += 1
+
+        if incidents_to_geocode:
+            session.commit()
 
     return geocoded_count
 
 
-def replace_all_incidents(incidents: list[dict[str, str]], area: str = "colorado_springs") -> int:
+def replace_all_incidents(
+    incidents: list[dict[str, str | float | None]], area: str = "colorado_springs"
+) -> int:
     create_table(area)
     clean_incidents = deduplicate_incidents(incidents)
 
-    with get_connection(area) as connection:
-        connection.execute("DELETE FROM incidents")
-        connection.executemany(
-            """
-            INSERT INTO incidents (
-                incident_key,
-                record_id,
-                incident_date,
-                time,
-                division,
-                title,
-                location,
-                summary,
-                adults_arrested,
-                pd_contact_number,
-                source_url,
-                latitude,
-                longitude,
-                geocode_provider,
-                geocoded_query,
-                geocode_status
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                (
-                    make_incident_key(incident),
-                    incident["record_id"],
-                    incident["incident_date"],
-                    incident["time"],
-                    incident["division"],
-                    incident["title"],
-                    incident["location"],
-                    incident["summary"],
-                    incident["adults_arrested"],
-                    incident["pd_contact_number"],
-                    incident["source_url"],
-                    incident.get("latitude"),
-                    incident.get("longitude"),
-                    incident.get("geocode_provider", ""),
-                    incident.get("geocoded_query", ""),
-                    "pending" if incident.get("location") else "missing",
-                )
-                for incident in clean_incidents
-            ],
-        )
+    with get_session(area) as session:
+        session.exec(delete(Incident))
+        session.commit()
+
+        for inc_dict in clean_incidents:
+            inc_dict["incident_key"] = make_incident_key(inc_dict)
+            new_incident = Incident.model_validate(inc_dict)
+            session.add(new_incident)
+
+        session.commit()
 
     geocode_missing_incidents(area=area)
     return len(clean_incidents)
 
 
-def upsert_incidents(incidents: list[dict[str, str]], area: str = "colorado_springs") -> tuple[int, int]:
+def upsert_incidents(
+    incidents: list[dict[str, str | float | None]], area: str = "colorado_springs"
+) -> tuple[int, int]:
+    if not incidents:
+        return count_incidents(area=area), 0
+
     create_table(area)
     clean_incidents = deduplicate_incidents(incidents)
-    incident_keys = {make_incident_key(incident) for incident in clean_incidents}
+    incident_keys_to_upsert = {make_incident_key(incident) for incident in clean_incidents}
 
-    with get_connection(area) as connection:
-        connection.executemany(
-            """
-            INSERT INTO incidents (
-                incident_key,
-                record_id,
-                incident_date,
-                time,
-                division,
-                title,
-                location,
-                summary,
-                adults_arrested,
-                pd_contact_number,
-                source_url,
-                latitude,
-                longitude,
-                geocode_provider,
-                geocoded_query,
-                geocode_status
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(incident_key) DO UPDATE SET
-                record_id = excluded.record_id,
-                incident_date = excluded.incident_date,
-                time = excluded.time,
-                division = excluded.division,
-                title = excluded.title,
-                location = excluded.location,
-                summary = excluded.summary,
-                adults_arrested = excluded.adults_arrested,
-                pd_contact_number = excluded.pd_contact_number,
-                source_url = excluded.source_url,
-                latitude = CASE WHEN incidents.location IS excluded.location THEN incidents.latitude ELSE NULL END,
-                longitude = CASE WHEN incidents.location IS excluded.location THEN incidents.longitude ELSE NULL END,
-                geocode_provider = CASE WHEN incidents.location IS excluded.location THEN incidents.geocode_provider ELSE '' END,
-                geocoded_query = CASE WHEN incidents.location IS excluded.location THEN incidents.geocoded_query ELSE '' END,
-                geocode_status = CASE
-                    WHEN excluded.location = '' THEN 'missing'
-                    WHEN incidents.location IS excluded.location THEN incidents.geocode_status
-                    ELSE 'pending'
-                END
-            """,
-            [
-                (
-                    make_incident_key(incident),
-                    incident["record_id"],
-                    incident["incident_date"],
-                    incident["time"],
-                    incident["division"],
-                    incident["title"],
-                    incident["location"],
-                    incident["summary"],
-                    incident["adults_arrested"],
-                    incident["pd_contact_number"],
-                    incident["source_url"],
-                    None,
-                    None,
-                    "",
-                    "",
-                    "pending" if incident.get("location") else "missing",
-                )
-                for incident in clean_incidents
-            ],
-        )
+    with get_session(area) as session:
+        statement = select(Incident).where(Incident.incident_key.in_(list(incident_keys_to_upsert)))
+        existing_incidents_map = {inc.incident_key: inc for inc in session.exec(statement).all()}
 
-    geocoded_count = geocode_missing_incidents(incident_keys, area=area)
+        for inc_dict in clean_incidents:
+            key = make_incident_key(inc_dict)
+            incident = existing_incidents_map.get(key)
+
+            if incident:
+                if incident.location == inc_dict["location"]:
+                    inc_dict["latitude"] = incident.latitude
+                    inc_dict["longitude"] = incident.longitude
+                    inc_dict["geocode_provider"] = incident.geocode_provider
+                    inc_dict["geocoded_query"] = incident.geocoded_query
+                    inc_dict["geocode_status"] = incident.geocode_status
+                else:
+                    inc_dict["latitude"] = None
+                    inc_dict["longitude"] = None
+                    inc_dict["geocode_provider"] = ""
+                    inc_dict["geocoded_query"] = ""
+                    inc_dict["geocode_status"] = "pending" if inc_dict.get("location") else "missing"
+
+                for k, v in inc_dict.items():
+                    if hasattr(incident, k):
+                        setattr(incident, k, v)
+                session.add(incident)
+            else:
+                new_incident = Incident.model_validate(inc_dict)
+                new_incident.incident_key = key
+                session.add(new_incident)
+
+        session.commit()
+
+    geocoded_count = geocode_missing_incidents(incident_keys_to_upsert, area=area)
     return count_incidents(area=area), geocoded_count
 
 
 def load_incidents(area: str = "colorado_springs") -> list[dict[str, str | float | None]]:
     create_table(area)
-
-    with get_connection(area) as connection:
-        rows = connection.execute(
-            """
-            SELECT
-                record_id,
-                incident_date,
-                time,
-                division,
-                title,
-                location,
-                summary,
-                adults_arrested,
-                pd_contact_number,
-                source_url,
-                latitude,
-                longitude,
-                geocode_provider,
-                geocoded_query,
-                geocode_status
-            FROM incidents
-            """
-        ).fetchall()
-
-    return [dict(row) for row in rows]
+    with get_session(area) as session:
+        incidents = session.exec(select(Incident)).all()
+        return [inc.model_dump() for inc in incidents]
 
 
 def count_incidents(area: str = "colorado_springs") -> int:
     create_table(area)
-
-    with get_connection(area) as connection:
-        row = connection.execute("SELECT COUNT(*) FROM incidents").fetchone()
-
-    return int(row[0]) if row else 0
+    with get_session(area) as session:
+        count = session.exec(select(func.count()).select_from(Incident)).one_or_none()
+    return count or 0
 
 
 def ensure_starting_data(area: str = "colorado_springs") -> None:

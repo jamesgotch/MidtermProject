@@ -29,18 +29,7 @@ const basemapDefinitions = {
 	},
 };
 
-const overlayDefinitions = {
-	parcels: {
-		url: "https://services.elpasoco.com/arcgis/rest/services/Assessor/Parcels/MapServer/tile/{z}/{y}/{x}",
-		label: "Property Parcels (El Paso)",
-		options: { minZoom: 15, maxZoom: 19, opacity: 0.7, zIndex: 10, errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" }
-	},
-	buildings: {
-		url: "https://tiles.arcgis.com/tiles/P3ePLMYs2RVChkJx/arcgis/rest/services/Microsoft_Building_Footprints/MapServer/tile/{z}/{y}/{x}",
-		label: "USA Building Footprints",
-		options: { minZoom: 14, maxZoom: 19, opacity: 0.6, zIndex: 10, errorTileUrl: "data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" }
-	}
-};
+const overlayDefinitions = {};
 
 const poiCategoryDefinitions = {
 	restaurants: {

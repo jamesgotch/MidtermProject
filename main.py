@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from database import ensure_starting_data, load_incidents
+from database import ensure_starting_data, load_incidents 
 from colorado_springs.scraper import refresh_data
 
 
