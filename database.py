@@ -19,7 +19,8 @@ ARCGIS_GEOCODER_URL = "https://geocode.arcgis.com/arcgis/rest/services/World/Geo
 class Incident(SQLModel, table=True):
     __tablename__ = "incidents"
 
-    incident_key: str = Field(primary_key=True)
+    # FIXED: Made incident_key optional with a default of None to satisfy Pydantic validation on updates
+    incident_key: typing.Optional[str] = Field(default=None, primary_key=True)
     record_id: typing.Optional[str] = Field(default=None, index=True)
     incident_date: typing.Optional[str] = None
     time: typing.Optional[str] = None
@@ -100,6 +101,7 @@ def get_db_path(area: str) -> Path:
     directory = ROOT_DIR / area
     directory.mkdir(parents=True, exist_ok=True)
     return directory / "incidents.db"
+
 def get_csv_path(area: str) -> Path:
     directory = ROOT_DIR / area
     directory.mkdir(parents=True, exist_ok=True)
